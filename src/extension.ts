@@ -1,11 +1,16 @@
 import * as vscode from 'vscode';
+import { DebugStateStore } from './debug/debugState';
 
 let out: vscode.OutputChannel;
-const prevLocals = new Map<string, string>();
+
+let debugState: DebugStateStore;
 
 export function activate(context: vscode.ExtensionContext) {
 	out = vscode.window.createOutputChannel('C Visual Debugger');
 	out.show(true);
+
+	debugState = new DebugStateStore();
+
 	const trackerDisposable =
 		vscode.debug.registerDebugAdapterTrackerFactory('cppdbg', {
 			createDebugAdapterTracker(session) {
@@ -17,22 +22,27 @@ export function activate(context: vscode.ExtensionContext) {
 
 						const reason = msg.body?.reason ?? 'unknown';
 						out.appendLine(`STOPPED: reason=${reason}`);
+						debugState.setStopReason(reason);
 
 						try {
 							const locals = await getLocals(session);
 
 							for (const v of locals) {
-								const prev = prevLocals.get(v.name);
-								const curr = v.value;
+								const state = debugState.updateVariable(v.name, v.value);
 
-								if (prev === undefined) {
-									out.appendLine(`  ${v.name} = ${curr}`);
-								} else if (prev !== curr) {
-									out.appendLine(`  ${v.name}: ${prev} -> ${curr}`);
+								if (state.prev === undefined) {
+									out.appendLine(`  ${state.name} = ${state.curr}`);
+								} else if (state.changed) {
+									out.appendLine(`  ${state.name}: ${state.prev} -> ${state.curr}`);
 								}
-
-								prevLocals.set(v.name, curr);
 							}
+
+							// stack frame
+
+
+
+							// stack frame
+
 						} catch (e: any) {
 							out.appendLine(`getLocals failed: ${e?.message ?? String(e)}`);
 						}
