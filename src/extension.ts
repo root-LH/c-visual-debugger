@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { DebugStateStore } from './debug/debugState';
+import { FrameState } from './debug/types';
 
 let out: vscode.OutputChannel;
 
@@ -37,11 +38,8 @@ export function activate(context: vscode.ExtensionContext) {
 								}
 							}
 
-							// stack frame
-
-
-
-							// stack frame
+							const frames = await getStackFrames(session);
+							debugState.setStackFrames(frames);
 
 						} catch (e: any) {
 							out.appendLine(`getLocals failed: ${e?.message ?? String(e)}`);
@@ -79,4 +77,20 @@ async function getLocals(session: vscode.DebugSession): Promise<Array<{ name: st
 	return vars
 		.filter((v: any) => typeof v?.name === 'string')
 		.map((v: any) => ({name: String(v.name), value: String(v.value ?? '')}));
+}
+
+async function getStackFrames(session: vscode.DebugSession): Promise<FrameState[]>{
+	const threads = await session.customRequest('threads');
+	const threadId = threads.threads[0]?.id;
+
+	if (!threadId) return [];
+
+	const stack = await session.customRequest('stackTrace', {threadId});
+
+	return stack.stackFrames.map((f: any) => ({
+		id: f.id,
+		name: f.name,
+		file: f.source?.path,
+		line: f.line
+	}));
 }
