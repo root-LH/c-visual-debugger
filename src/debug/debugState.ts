@@ -1,6 +1,6 @@
 import { DebugState, VariableState, FrameState, FrameKey } from "./types";
 
-function frameKeyToString(key: FrameKey): string{
+export function frameKeyToString(key: FrameKey): string{
     return `${key.depth}-${key.name}`;
 }
 
