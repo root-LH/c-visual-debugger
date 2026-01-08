@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DebugStateStore } from './debug/debugState';
 import { FrameState } from './debug/types';
+import { DebugViewProvider } from './ui/debugViewProvider';
 
 let out: vscode.OutputChannel;
 
@@ -32,6 +33,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 	debugState = new DebugStateStore();
 
+	const debugViewProvider = new DebugViewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			DebugViewProvider.viewType,
+			debugViewProvider,
+			{ webviewOptions: { retainContextWhenHidden: true } }
+		)
+	);
+
 	const trackerDisposable =
 		vscode.debug.registerDebugAdapterTrackerFactory('cppdbg', {
             createDebugAdapterTracker(session) {
@@ -39,12 +49,17 @@ export function activate(context: vscode.ExtensionContext) {
 
                 return {
                     onDidSendMessage: async (msg: any) => {
-                        if (msg?.type !== 'event') return;
-                        if (msg.event !== 'stopped') return;
+                        if (msg?.type !== 'event') {
+							return;
+						}
+                        if (msg.event !== 'stopped') {
+							return;
+						}
 
                         const reason = msg.body?.reason ?? 'unknown';
 
                         out.appendLine(`STOPPED: reason=${reason}`);
+						debugState.setStopReason(reason);
 
                         const frames = await collectStackFrames(session);
                         debugState.setStackFrames(frames);
@@ -72,6 +87,8 @@ export function activate(context: vscode.ExtensionContext) {
 								}
                             }
                         }
+
+						debugViewProvider.setState(debugState.getState());
                     }
                 };
             }
@@ -90,9 +107,11 @@ async function getLocals(
 	const localsScope = (scopesResp?.scopes ?? []).find((s: any) =>
 		typeof s?.name === 'string' && s.name.toLowerCase().includes('local')
 	) ?? scopesResp?.scopes?.[0];
-	
+
 	const variablesReference = localsScope?.variablesReference;
-	if (!variablesReference) return [];
+	if (!variablesReference) {
+		return [];
+	}
 
 	const varsResp = await session.customRequest('variables', {variablesReference});
 	const vars = varsResp?.variables ?? [];
