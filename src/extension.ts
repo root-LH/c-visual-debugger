@@ -34,6 +34,18 @@ export function activate(context: vscode.ExtensionContext) {
 	out = vscode.window.createOutputChannel('C Visual Debugger');
 	out.show(true);
 
+	const breakPointListener = vscode.debug.onDidChangeBreakpoints((e) => {
+		const breakpoints = vscode.debug.breakpoints;
+
+		out.appendLine(`BreakPoints: ${breakpoints.length} entry`);
+		breakpoints.forEach(bp => {
+			if (bp instanceof vscode.SourceBreakpoint){
+				// transfer break point information to UI/UX (Not implemented)
+				out.appendLine(`File: ${bp.location.uri.fsPath}, Line: ${bp.location.range.start.line + 1}`);
+			}
+		})
+	})
+
 	debugState = new DebugStateStore();
 
 	const debugViewProvider = new DebugViewProvider(context.extensionUri);
